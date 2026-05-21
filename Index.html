@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zone Notes</title>
+    <link rel="manifest" href="manifest.json">
+    <style>
+        :root {
+            --bg-all: #3a3a3c;
+            --bg-nz: #ff453a;
+            --bg-ez: #ff9f0a;
+            --bg-sz: #30d158;
+            --bg-wz: #0a84ff;
+            --bg-cz: #bf5af2;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+        body { background: #1c1c1e; color: #ffffff; padding: 10px; }
+        
+        /* Tabs Grid */
+        .tabs { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; margin-bottom: 15px; }
+        .tab { background: #2c2c2e; border: none; color: #aeaeae; padding: 12px 0; text-align: center; font-weight: bold; font-size: 14px; border-radius: 8px; cursor: pointer; }
+        .tab.active { color: #ffffff; }
+        .tab[data-zone="ALL"].active { background: var(--bg-all); }
+        .tab[data-zone="NZ"].active { background: var(--bg-nz); }
+        .tab[data-zone="EZ"].active { background: var(--bg-ez); }
+        .tab[data-zone="SZ"].active { background: var(--bg-sz); }
+        .tab[data-zone="WZ"].active { background: var(--bg-wz); }
+        .tab[data-zone="CZ"].active { background: var(--bg-cz); }
+
+        /* Input Container */
+        .input-container { display: flex; gap: 8px; margin-bottom: 15px; }
+        #task-input { flex: 1; background: #2c2c2e; border: 1px solid #3a3a3c; padding: 14px; border-radius: 8px; color: #fff; font-size: 16px; }
+        #task-input:focus { outline: 1px solid #0a84ff; }
+        #add-btn { background: #0a84ff; border: none; color: white; padding: 0 16px; border-radius: 8px; font-weight: bold; font-size: 16px; }
+
+        /* Task List */
+        .task-list { display: flex; flex-direction: column; gap: 8px; }
+        .task-item { display: flex; align-items: center; padding: 14px; border-radius: 8px; animation: fadeIn 0.2s ease; }
+        .task-item.NZ { background: var(--bg-nz); color: #fff; }
+        .task-item.EZ { background: var(--bg-ez); color: #000; }
+        .task-item.SZ { background: var(--bg-sz); color: #000; }
+        .task-item.WZ { background: var(--bg-wz); color: #fff; }
+        .task-item.CZ { background: var(--bg-cz); color: #fff; }
+        
+        /* Custom Checkbox styling */
+        .checkbox-container { display: flex; align-items: center; cursor: pointer; width: 100%; }
+        .checkbox-container input { display: none; }
+        .checkmark { width: 22px; height: 22px; border: 2px solid currentColor; border-radius: 6px; margin-right: 12px; display: inline-block; relative; flex-shrink: 0; }
+        .checkbox-container input:checked + .checkmark::after { content: '✓'; display: block; text-align: center; line-height: 18px; font-weight: bold; }
+        .task-text { font-size: 16px; word-break: break-word; font-weight: 500; }
+        .checkbox-container input:checked ~ .task-text { text-decoration: line-through; opacity: 0.6; }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body>
+
+    <!-- 6 Tabs Container -->
+    <div class="tabs">
+        <button class="tab active" data-zone="ALL">all</button>
+        <button class="tab" data-zone="NZ">NZ</button>
+        <button class="tab" data-zone="EZ">EZ</button>
+        <button class="tab" data-zone="SZ">SZ</button>
+        <button class="tab" data-zone="WZ">WZ</button>
+        <button class="tab" data-zone="CZ">CZ</button>
+    </div>
+
+    <!-- Input Form -->
+    <div class="input-container" id="input-row">
+        <input type="text" id="task-input" placeholder="Add task to NZ..." autocomplete="off">
+        <button id="add-btn">+</button>
+    </div>
+
+    <!-- Notes Display -->
+    <div class="task-list" id="task-list"></div>
+
+    <script>
+        let currentZone = 'ALL';
+        let tasks = JSON.parse(localStorage.getItem('zone_tasks')) || [];
+
+        const tabs = document.querySelectorAll('.tab');
+        const taskInput = document.getElementById('task-input');
+        const addBtn = document.getElementById('add-btn');
+        const taskList = document.getElementById('task-list');
+        const inputRow = document.getElementById('input-row');
+
+        // Handle Tab Switching
+        tabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                tabs.forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                currentZone = tab.getAttribute('data-zone');
+                
+                // Hide input box if on 'ALL' tab
+                if (currentZone === 'ALL') {
+                    inputRow.style.display = 'none';
+                } else {
+                    inputRow.style.display = 'flex';
+                    taskInput.placeholder = `Add task to ${currentZone}...`;
+                }
+                render();
+            });
+        });
+
+        // Add Task logic
+        function addTask() {
+            const text = taskInput.value.trim();
+            if (!text || currentZone === 'ALL') return;
+
+            const newTask = {
+                id: Date.now(),
+                text: text,
+                zone: currentZone,
+                completed: false
+            };
+
+            tasks.push(newTask);
+            saveAndRender();
+            taskInput.value = '';
+        }
+
+        addBtn.addEventListener('click', addTask);
+        taskInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') addTask(); });
+
+        // Toggle Task Completion
+        function toggleTask(id) {
+            tasks = tasks.map(task => task.id === id ? { ...task, completed: !task.completed } : task);
+            saveAndRender();
+        }
+
+        // Save data locally
+        function saveAndRender() {
+            localStorage.setItem('zone_tasks', JSON.stringify(tasks));
+            render();
+        }
+
+        // Render UI
+        function render() {
+            taskList.innerHTML = '';
+            
+            // Filter logic: show all if on 'ALL' tab, otherwise filter by selected zone
+            const filteredTasks = currentZone === 'ALL' 
+                ? tasks 
+                : tasks.filter(t => t.zone === currentZone);
+
+            // Sort: active tasks on top, completed at the bottom
+            filteredTasks.sort((a, b) => a.completed - b.completed);
+
+            filteredTasks.forEach(task => {
+                const item = document.createElement('div');
+                item.className = `task-item ${task.zone}`;
+
+                const label = document.createElement('label');
+                label.className = 'checkbox-container';
+
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.checked = task.completed;
+                checkbox.addEventListener('change', () => toggleTask(task.id));
+
+                const checkmark = document.createElement('span');
+                checkmark.className = 'checkmark';
+
+                const textSpan = document.createElement('span');
+                textSpan.className = 'task-text';
+                // Show zone prefix only on the 'ALL' tab for crisp scanning
+                textSpan.textContent = currentZone === 'ALL' ? `[${task.zone}] ${task.text}` : task.text;
+
+                label.appendChild(checkbox);
+                label.appendChild(checkmark);
+                label.appendChild(textSpan);
+                item.appendChild(label);
+                taskList.appendChild(item);
+            });
+        }
+
+        // Initialize view
+        if (currentZone === 'ALL') inputRow.style.display = 'none';
+        render();
+    </script>
+</body>
+</html>
