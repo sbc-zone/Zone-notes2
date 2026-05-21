@@ -1,0 +1,9 @@
+{
+  "name": "Zone Notes",
+  "short_name": "Zone Notes",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#1c1c1e",
+  "theme_color": "#1c1c1e",
+  "orientation": "portrait"
+}
